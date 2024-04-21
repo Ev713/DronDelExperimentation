@@ -89,22 +89,22 @@ def multi_run():
     algos = [
         'MCTS_E',
         'MCTS_V',
-        'MCTS_S',
+        #'MCTS_S',
         'BFS',
-        'BNBL',
+        #'BNBL',
         'BNB',
         'GBNB',
-        'ASTAR',
+        #'ASTAR',
         # 'DFS'
     ]
-    name = 'file_name'
-    timeout = 600
+    name = 'apr_11'
+    timeout = 20
     start = time.perf_counter()
     decoder = instance_decoder.Decoder()
     decoder.decode_reduced(file_path='maps')
     instances = decoder.instances
     runs_left = len(instances) * len(algos)
-    max_workers = 4  # round(multiprocessing.cpu_count() * 0.10)
+    max_workers = 2  # round(multiprocessing.cpu_count() * 0.10)
     print(f"Starting multi-run. \nTimeout: {timeout}\n"
           f"Algorithms: {algos}\nMax workers: {max_workers}\n"
           f"Instances: {len(instances)}")

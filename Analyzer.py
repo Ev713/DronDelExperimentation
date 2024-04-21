@@ -1,6 +1,10 @@
 import statistics
 
 import pandas as pd
+import matplotlib
+
+matplotlib.use('TkAgg')  # Use Tkinter backend, you can replace 'TkAgg' with another backend that works for you
+
 import matplotlib.pyplot as plt
 import numpy as np
 import math
@@ -105,7 +109,6 @@ class Analyzer:
             self.runs.append(run)
 
     def get_sat_graph(self):
-
         fin_ress = {algo: [] for algo in self.algos}
         sizes = {algo: [] for algo in self.algos}
         states = {algo: [] for algo in self.algos}
@@ -191,28 +194,34 @@ class Analyzer:
                 graphs[algo][0].append(t)
                 graphs[algo][1].append(avg_result)
 
+        plt.figure(figsize=(6.4, 5))
+
         markers = ['>', '+', '.', ',', 'o', 'v', 'x', 'X', 'D', '|']
+
         for i in range(len(self.algos)):
             plt.plot(graphs[self.algos[i]][0], graphs[self.algos[i]][1], markers[i % 10], linestyle='-')
 
-        plt.legend([renames[algo] for algo in self.algos])
         if not relative_to_states:
             plt.xlabel("Time")
         else:
             plt.xlabel("States")
-        plt.ylabel("Result (relative to best result)")
+        plt.ylabel("Result (relative to best)")
         plt.title(self.get_title() + " Anytime")
         plt.ylim(bottom=0)
         plt.xlim(self.timeout / 20, self.timeout)
 
+
+        #plt.legend([renames[algo] for algo in self.algos])
+        plt.tight_layout()
         print("States (relative to best states):")
         for algo in self.data_for_tables:
             print(algo + ": " + str(round(statistics.mean(self.data_for_tables[algo]), 3)))
-        plt.savefig("data/18_feb/Images/SM/" + self.get_title().replace(" ", '_') +
+        plt.savefig("data/17apr/Images/" + self.get_title().replace(" ", '_') +
                     "sat" + ("_SM" if len(self.algos) > 4 else "") + ".jpg")
         plt.show()
 
     def get_opt_graph(self):
+
         if 'MCTS_S' in self.algos:
             self.algos.remove('MCTS_S')
         if 'MCTS_E' in self.algos:
@@ -244,19 +253,31 @@ class Analyzer:
                 self.data_for_graphs[algo][1].append(num_of_succ)
 
         markers = ['>', '+', '.', ',', 'o', 'v', 'x', 'X', 'D', '|']
-        for i in range(len(self.algos)):
-            plt.plot(self.data_for_graphs[self.algos[i]][0],
-                     self.data_for_graphs[self.algos[i]][1], markers[i % 10], linestyle='-')
 
-        plt.legend([renames[algo] for algo in self.algos])
+        self.algos = sorted(['MCTS_V',
+        'MCTS_S',
+        'ASTAR',
+        'BFS',])
+
+        inviss = []
+        plt.figure(figsize=(6.4, 6.6))
+        for i in range(len(self.algos)):
+            if not 'MCTS' in self.algos[i]:
+                plt.plot(self.data_for_graphs[self.algos[i]][0],
+                         self.data_for_graphs[self.algos[i]][1], markers[i % 10], linestyle='-')
+            else:
+                inviss.append(plt.plot([1],[1], markers[i % 10], linestyle='-'))
+
+        plt.legend([renames[algo] for algo in self.algos], ncol=2, loc='upper center', bbox_to_anchor=(0.5, -0.3))
         plt.xlabel("Time")
-        plt.ylabel("number of solved")
+        plt.ylabel("Number of Solved")
         plt.xlim(0, self.timeout)
 
         plt.title(self.get_title() + " Optimal")
         plt.ylim(bottom=0)
+        plt.tight_layout()
 
-        plt.savefig("data/18_feb/Images/SM/" + self.get_title().replace(" ", '_') + "opt" + (
+        plt.savefig("data/17apr/Images/" + self.get_title().replace(" ", '_') + "opt" + (
             "_SM" if len(self.algos) > 4 else "") + ".jpg")
 
         plt.show()
@@ -274,7 +295,7 @@ class Analyzer:
 
 
 def main():
-    filepath = "data/18_feb/dec_18_sat_ser.csv"
+    filepath = "data/paper_opt.csv"
     analyzer = Analyzer(filepath)
     analyzer.acc = 2
     analyzer.timeout = 900
@@ -290,10 +311,10 @@ def main():
         'ASTAR',
         'BFS',
 
-        'BNBL',
-        'BNB',
-        'MCTS_E',
-        'GBNB'
+        # 'BNBL',
+        # 'BNB',
+        # 'MCTS_E',
+        # 'GBNB'
     )
 
     analyzer.create_runs()
@@ -321,7 +342,12 @@ def main():
             analyzer.instances[run.inst_name] = {}
         analyzer.instances[run.inst_name][run.algo] = run
 
-    analyzer.get_sat_graph()
+    font = {'family': 'normal',
+            'size': 25}
+
+    matplotlib.rc('font', **font)
+
+    analyzer.get_opt_graph()
 
     # algo = 'BNBL'
     # plt.scatter(sizes[algo], fin_ress[algo])

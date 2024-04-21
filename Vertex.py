@@ -1,11 +1,11 @@
 import random
-
+import typing
 
 class Vertex:
-    def __init__(self, id):
-        self.id = id # String name
-        self.neighbours = []  # list of Vertices
-        self.distribution = {}  # reward: probability dictionary
+    def __init__(self, id: int):
+        self.id = id
+        self.neighbours: typing.List[int] = []  # list of Vertices
+        self.distribution: typing.Dict[float, float] = {}  # reward: probability dictionary
 
     def hash(self):
         if self.id == -1:
@@ -31,8 +31,8 @@ class Vertex:
 class EmpVertex(Vertex):
     def __init__(self, id):
         super().__init__(id)
-        self.is_empty = False
-        self.reward = 0
+        self.is_empty: bool = False
+        self.reward: float = 0
 
     def generate_reward(self):
         p = random.random()

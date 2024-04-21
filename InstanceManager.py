@@ -32,7 +32,7 @@ def to_string(inst, filepath=''):
     file.write(inst.source + '\n')
     for a in inst.agents:
         file.write('A' + '\n')
-        file.write(str(a.number) + '\n')
+        file.write(str(a.id) + '\n')
         file.write(str(a.loc.hash()) + '\n')
         file.write(str(a.movement_budget) + '\n')
         file.write(str(a.utility_budget) + '\n')
@@ -71,10 +71,10 @@ def map_reduce(inst):
     is_used = set()
     for start in essential_vertices:
         if want_to_print:
-            print("Start ", start.number)
+            print("Start ", start.id)
         for end in essential_vertices:
             if want_to_print:
-                print("End ", end.number)
+                print("End ", end.id)
             if end == start:
                 continue
             queue = [(start, [])]
@@ -111,7 +111,8 @@ def map_reduce(inst):
 
 def calculate_all_pairs_distances_with_Seidel(inst):
     n = len(inst.map)
-    A = matrix([[1 if (inst.map[j] in inst.map[i].neighbours) else 0 for i in range(n)] for j in range(n)])
+    A = matrix([[1 if (inst.map[j].id in inst.map[i].neighbours) else 0 for i in range(n)] for j in range(n)])
+    assert numpy.sum(A) > 0
     D = apd(A, n)
     return {(inst.map[i].hash(), inst.map[j].hash()): D[i][j] for i in range(n) for j in range(n)}
 
@@ -123,28 +124,27 @@ def to_inst(filepath):
     horizon = int(next(line_it).strip())
     source = next(line_it).strip()
     agents = []
-    agents_locations = {}
     map = []
     map_map = {}
     neighbours_hashes = {}
     EOF = False
     while next(line_it).strip() == 'A':
-        agent = Agent.Agent(None, None, None, None)
-        agent.number = int(next(line_it).strip())
-        agents_locations[agent.number] = int(next(line_it).strip())
+        agent = Agent.Agent(-1, -1, -1, -1)
+        agent.id = int(next(line_it).strip())
+        agent.loc = int(next(line_it).strip())
         agent.movement_budget = int(next(line_it).strip())
         agent.utility_budget = int(next(line_it).strip())
         agents.append(agent)
     while True:
         vertex = Vertex.Vertex(int(next(line_it).strip()))
-        neighbours_hashes[vertex] = []
+        neighbours_hashes[vertex.hash()] = []
         if not next(line_it).strip() == 'N':
             raise Exception('Instance encoded incorrectly!')
         while True:
             n = next(line_it).strip()
             if n == 'D':
                 break
-            neighbours_hashes[vertex].append(int(n))
+            vertex.neighbours.append(int(n))
         for r in itertools.count(start=0):
             next_line = next(line_it, 'EOF').strip()
             if next_line == 'V':
@@ -156,10 +156,6 @@ def to_inst(filepath):
         map.append(vertex)
         map_map[vertex.hash()] = vertex
         if EOF:
-            for v in map:
-                v.neighbours = [map_map[n_hash] for n_hash in neighbours_hashes[v]]
-            for a in agents:
-                a.loc = map_map[agents_locations[a.number]]
             return Instance.Instance(name, map, agents, horizon, source)
 
 

@@ -1,11 +1,13 @@
 import copy
-
+import typing
+from typing import List, Dict, Optional
 import numpy as np
 
+from Vertex import Vertex
 
 
 class Ber:
-    def __init__(self, r, p):
+    def __init__(self, r: float, p:float):
         self.p = p
         self.r = r
 
@@ -23,9 +25,9 @@ class Ber:
 
 
 class Action:
-    def __init__(self, loc=-1, dropoff=True):
-        self.loc = loc
-        self.dropoff = dropoff
+    def __init__(self, loc: int, dropoff: bool):
+        self.loc: int = loc
+        self.dropoff: bool = dropoff
 
     def __str__(self):
         return "( " + str(self.loc) + ", " + str(self.dropoff) + " )"
@@ -45,21 +47,25 @@ class State:
     def is_terminal(self):
         return self.time_left == 0
 
-    def get_loc(self, a_hash):
+    def get_loc(self, a_hash: int):
+        pass
+
+    def copy(self):
         pass
 
 
 class EmpState(State):
     def __init__(self, instance=None):
         super().__init__()
-        self.path = {}  # a.hash(): [pos, pos, -1, ... , -1] -
+        self.path: Dict[int, List[Optional[Action]]] = {}  # a.hash(): [act, act, -1, ... , -1] -
         # Required to count the reward of the state. Not needed in stochastic state.
         if instance is not None:
             self.time_left = instance.horizon
             for a in instance.agents:
-                self.path[a.hash()] = [None for _ in range(instance.horizon)]
+                self.path[a.hash()] = [None for _ in range(instance.horizon + 1)]
+                self.path[a.hash()][0] = Action(a.loc, False)
 
-    def get_loc(self, a_hash):
+    def get_loc(self, a_hash: int):
         if self.path[a_hash][0] is None:
             return None
         if self.path[a_hash][-1] is not None:
@@ -82,13 +88,13 @@ class EmpState(State):
 class VectorState(State):
     def __init__(self, instance=None):
         super().__init__()
-        self.reward = None
+        self.reward: Optional[float] = None
         if instance is not None:
-            self.loc = {a.hash(): a.loc.hash() for a in instance.agents}
-            self.bers = {v.hash(): Ber(v.bernoulli(), v.p()) for v in instance.map}
-            self.utl = {a.hash(): [0 for _ in range(a.utility_budget + 1)] for a in instance.agents}
-            for ah in self.utl:
-                self.utl[ah][-1] = 1
+            self.loc: Dict[int:int] = {a.hash(): a.loc for a in instance.agents}
+            self.bers: Dict[int, Ber] = {v.hash(): Ber(v.bernoulli(), v.p()) for v in instance.map}
+            self.utl: Dict[int, List[float]] = {a.hash(): [0 for _ in range(a.utility_budget + 1)] for a in instance.agents}
+            for a in self.utl:
+                self.utl[a][-1] = 1
 
     def copy(self):
         copy_state = VectorState()
@@ -104,23 +110,23 @@ class VectorState(State):
                tuple((ah, tuple(self.utl[ah])) for ah in self.utl)
         return hash
 
-    def calculate_vertex_estimate(self, vertex):
+    def calculate_vertex_estimate(self, vertex: Vertex):
         return self.bers[vertex.hash()].e()
 
-    def bernoulli(self, vertex):
+    def bernoulli(self, vertex: Vertex):
         return self.bers[vertex.hash()].r
 
-    def get_loc(self, a_hash):
+    def get_loc(self, a_hash: int):
         return self.loc[a_hash]
 
-    def prob_u_at_least(self, a_hash, x):
+    def prob_u_at_least(self, a_hash: int, x):
         return 1 - sum(self.utl[a_hash][u] for u in range(x))
 
     def __str__(self):
         return str(self.loc)
 
 
-def dict_to_np_arr(dict):
+'''def dict_to_np_arr(dict: Dict):
     if round(sum(dict.values()), 5) != 1:
         raise Exception("Sum of probabilities in distribution must be 1")
     arr = np.zeros((max([k for k in dict if dict[k] != 0]) + 1))
@@ -130,3 +136,4 @@ def dict_to_np_arr(dict):
         if dict[k] != 0:
             arr[k] = dict[k]
     return arr
+'''

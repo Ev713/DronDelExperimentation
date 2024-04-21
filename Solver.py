@@ -59,42 +59,50 @@ class Solver:
         self.timer.start('log')
         self.root = Node.Node(None)
         self.root.state = self.instance.initial_state.copy()
-        loc = self.root.state.loc
-        self.root.path = {a: [State.Action(loc[a], False)] for a in loc}
+        self.root.path = {a: [State.Action(self.root.state.get_loc(a), False)] for a in self.instance.agents_map}
         self.best_node = self.root
         self.best_value = self.instance.reward(self.root.state)
         self.num_of_states = 0
 
     def get_results(self):
         if self.return_path:
-            return self.timer.logs[max(list(self.timer.logs.keys()))][0]
+            return self.get_best_node().path
         log = self.timer.logs['run']
         results = []
         for t in log:
             reward = round(self.evaluate_path(log[t][0]), 3)
-            # reward_emp = round(self.evaluate_path(log[t][0], method='EMP'), 3)
-            # if reward_emp != reward:
-            #     breakpoint()
+
+            '''reward_emp = round(self.evaluate_path(log[t][0], method='EMP'), 3)
+            if reward_emp != reward:
+                breakpoint()
+            '''
             results.append((reward, log[t][1], round(t, 3)))
         return tuple(results)
 
-    def log_if_needed(self, path=None, needed=False):
+    def get_best_node(self):
+        if self.best_node is not None:
+            return self.best_node
+        best = self.root
+        while not best.state.is_terminal() and len(best.children) != 0:
+            best = best.highest_value_child()
+        return best
+
+    def log_if_needed(self, path=None):
         now = self.timer.now()
-        if needed or self.timer.duration_gt('log', self.timeout / self.num_of_logs, alt_now=now):
-            self.timer.restart('log', alt_now=now)
-            best_is_none = self.best_node is None
-            if best_is_none and path is None:
-                self.best_node = self.root
-                while not self.best_node.state.is_terminal() and len(self.best_node.children) != 0:
-                    self.best_node = self.best_node.highest_value_child()
-            # print(self.best_value)
-            self.timer.log(
-                (self.best_node.path if path is None else path, self.num_of_states),
-                thing='run', alt_now=now)
-            if best_is_none:
-                self.best_node = None
+        if self.timer.duration_gt('log', self.timeout / self.num_of_logs, alt_now=now):
+            self.force_log(path=path, alt_now=now)
             return True
         return False
+
+    def force_log(self, alt_now=None, path=None):
+        if alt_now is not None:
+            now = alt_now
+        else:
+            now = self.timer.now()
+        self.timer.restart('log', alt_now=now)
+        self.timer.log(
+            (self.get_best_node().path if path is None else path, self.num_of_states),
+            thing='run', alt_now=now)
 
     def is_timeout(self):
         return self.timer.duration_gt('run', self.timeout)
@@ -201,12 +209,12 @@ class Solver:
         return self.branch_and_bound()
 
     def branch_and_bound(self, upper_bound=None, lower_bound=None, is_greedy=False, depth_first=False, astar=False):
-        want_print = False
+        show_time = False
         # self.dup_det = False
         if upper_bound is not None or lower_bound is not None:
             self.calculate_all_pairs_distances_with_Seidel()
         self.restart()
-        if want_print:
+        if show_time:
             self.timer.start("init")
         if is_greedy:
             que = PriorityQueue(self.root)
@@ -219,24 +227,26 @@ class Solver:
         if upper_bound is not None:
             lowest_bound = self.root
             lowest_bound.low = lower_bound(lowest_bound.state) if lower_bound is not None else 0
-        if want_print:
+        if show_time:
             self.timer.end('init')
         while not que.is_empty():
             if self.is_timeout():
-                if want_print:
+                if show_time:
                     print(str(self.timer))
-                self.log_if_needed(needed=True)
+                if not self.return_path:
+                    self.force_log()
                 return self.get_results()
-            self.log_if_needed()
+            if not self.return_path:
+                self.log_if_needed()
             node = que.pop()
 
-            if want_print:
+            if show_time:
                 self.timer.end_from_last_end('pop')
             if not node.state.is_terminal():
                 node.expand(self.instance)
                 self.num_of_states += len(node.children)
 
-                if want_print:
+                if show_time:
                     self.timer.end_from_last_end('expand')
                 for child in node.children:
 
@@ -244,7 +254,7 @@ class Solver:
                         if self.is_duplicate(child.state):
                             continue
 
-                    if want_print:
+                    if show_time:
                         self.timer.end_from_last_end("dup det")
 
                     child.value = self.instance.reward(child.state)
@@ -261,12 +271,13 @@ class Solver:
                         child.low = lower_bound(child.state) if lower_bound is not None else 0
                         if child.value + child.low > lowest_bound.value + lowest_bound.low:
                             lowest_bound = child
-                    if want_print:
+                    if show_time:
                         self.timer.end_from_last_end('value games')
                     que.push(child)
-                    if want_print:
+                    if show_time:
                         self.timer.end_from_last_end('push')
-        self.log_if_needed(needed=True)
+        if not self.return_path:
+            self.force_log()
         return self.get_results()
 
     def value_plus_upper_bound(self, state):
@@ -300,9 +311,11 @@ class Solver:
         self.best_node = None
         for t in range(self.NUMBER_OF_SIMULATIONS):
             if self.is_timeout():
-                self.log_if_needed(best_path, needed=True)
+                if not self.return_path:
+                    self.force_log(path=best_path)
                 return self.get_results()
-            self.log_if_needed(best_path)
+            if not self.return_path:
+                self.log_if_needed(best_path)
             node = self.root
             # selection
 
@@ -363,7 +376,8 @@ class Solver:
 
         # root.get_tree()
         # returning
-        self.log_if_needed(best_path, needed=True)
+        if not self.return_path:
+            self.force_log(path=best_path)
         return self.get_results()
 
     def evaluate_path(self, path, method='VEC'):
