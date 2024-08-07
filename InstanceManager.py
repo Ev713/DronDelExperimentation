@@ -1,4 +1,5 @@
 import itertools
+import json
 
 import numpy
 
@@ -25,29 +26,78 @@ def apd(A, n: int):
     return D
 
 
-def to_string(inst, filepath=''):
-    file = open(filepath + '/' + inst.name + ".txt", mode='w')
-    file.write(str(inst.name) + '\n')
-    file.write(str(inst.horizon) + '\n')
-    file.write(inst.source + '\n')
-    for a in inst.agents:
-        file.write('A' + '\n')
-        file.write(str(a.id) + '\n')
-        file.write(str(a.loc.hash()) + '\n')
-        file.write(str(a.movement_budget) + '\n')
-        file.write(str(a.utility_budget) + '\n')
-    for v in inst.map:
-        file.write('V' + '\n')
-        file.write(str(v.hash()) + '\n')
-        file.write('N' + '\n')
-        for n in v.neighbours:
-            file.write(str(n.hash()) + '\n')
-        file.write('D' + '\n')
-        for r in range(max(list(v.distribution.keys())) + 1):
-            if r not in v.distribution:
-                file.write('0' + '\n')
-            else:
-                file.write(str(v.distribution[r]) + '\n')
+
+def to_json(inst, filepath=''):
+    # Create a dictionary to hold the data
+    data = {
+        'name': inst.name,
+        'horizon': inst.horizon,
+        'source': inst.source,
+        'agents': [
+            {
+                'id': a.id,
+                'location_hash': a.loc,
+                'movement_budget': a.movement_budget,
+                'utility_budget': a.utility_budget
+            }
+            for a in inst.agents
+        ],
+        'map': [
+            {
+                'vertex_hash': v.hash(),
+                'neighbours': v.neighbours,
+                'distribution': {
+                    r: v.distribution.get(r, 0) for r in range(max(list(v.distribution.keys())) + 1)
+                }
+            }
+            for v in inst.map
+        ]
+    }
+
+    # Define the path to save the JSON file
+    json_filepath = f'{filepath}/{inst.name}.json'
+
+    # Write the JSON data to a file
+    with open(json_filepath, 'w') as file:
+        json.dump(data, file, indent=4)
+
+
+def json_to_inst(filepath):
+    # Read the JSON data from the file
+    with open(filepath, 'r') as file:
+        data = json.load(file)
+
+    # Extract the basic information
+    name = data['name']
+    horizon = data['horizon']
+    source = data['source']
+
+    # Create a map of vertex hash to vertex objects
+    vertex_map = {}
+    for vertex_data in data['map']:
+        vertex = Vertex.Vertex(vertex_data['vertex_hash'])
+        vertex_map[vertex.hash()] = vertex
+
+    # Set up the vertex neighbours
+    for vertex_data in data['map']:
+        vertex = vertex_map[vertex_data['vertex_hash']]
+        for neighbour_hash in vertex_data['neighbours']:
+            vertex.neighbours.append(neighbour_hash)
+        vertex.distribution = {int(r): vertex_data['distribution'][r] for r in vertex_data['distribution']}
+
+    # Create agents
+    agents = []
+    for agent_data in data['agents']:
+        agent = Agent.Agent(None, None, None, None)
+        agent.id = agent_data['id']
+        # Locate the vertex by hash
+        agent.loc = vertex_map[agent_data['location_hash']]
+        agent.movement_budget = agent_data['movement_budget']
+        agent.utility_budget = agent_data['utility_budget']
+        agents.append(agent)
+
+    # Create and return the instance
+    return Instance.Instance(name, list(vertex_map.values()), agents, horizon, source)
 
 
 def map_reduce(inst):
@@ -115,48 +165,6 @@ def calculate_all_pairs_distances_with_Seidel(inst):
     assert numpy.sum(A) > 0
     D = apd(A, n)
     return {(inst.map[i].hash(), inst.map[j].hash()): D[i][j] for i in range(n) for j in range(n)}
-
-
-def to_inst(filepath):
-    file = open(filepath, mode='r')
-    line_it = iter(file)
-    name = next(line_it).strip()
-    horizon = int(next(line_it).strip())
-    source = next(line_it).strip()
-    agents = []
-    map = []
-    map_map = {}
-    neighbours_hashes = {}
-    EOF = False
-    while next(line_it).strip() == 'A':
-        agent = Agent.Agent(-1, -1, -1, -1)
-        agent.id = int(next(line_it).strip())
-        agent.loc = int(next(line_it).strip())
-        agent.movement_budget = int(next(line_it).strip())
-        agent.utility_budget = int(next(line_it).strip())
-        agents.append(agent)
-    while True:
-        vertex = Vertex.Vertex(int(next(line_it).strip()))
-        neighbours_hashes[vertex.hash()] = []
-        if not next(line_it).strip() == 'N':
-            raise Exception('Instance encoded incorrectly!')
-        while True:
-            n = next(line_it).strip()
-            if n == 'D':
-                break
-            vertex.neighbours.append(int(n))
-        for r in itertools.count(start=0):
-            next_line = next(line_it, 'EOF').strip()
-            if next_line == 'V':
-                break
-            if next_line == 'EOF':
-                EOF = True
-                break
-            vertex.distribution[r] = float(next_line)
-        map.append(vertex)
-        map_map[vertex.hash()] = vertex
-        if EOF:
-            return Instance.Instance(name, map, agents, horizon, source)
 
 
 def filter_unconnected(inst):
