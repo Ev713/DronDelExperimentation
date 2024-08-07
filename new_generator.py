@@ -1,9 +1,14 @@
 import warnings
 
+import matplotlib
+
 import Agent
 import Instance
 import Vertex
 import numpy as np
+from PIL import Image
+
+matplotlib.use('Agg')  # or another backend you need
 
 
 class Generator:
@@ -44,12 +49,35 @@ class Generator:
 
         if len(move_budgets) != len(util_budgets) or len(util_budgets) != len(init_locs):
             raise Exception('Due to incoherent lengths of inputs, number of agents is unclear')
+        self.name = f'i_{self.rows * self.cols - len(self.unpassable_locs)}_{len(self.init_locs)}_{self.hor}'
 
     def to_picture(self):
-        colors = [[(0, 0, 0) for _ in self.cols ] for _ in self.rows]
+        colors = [[(255, 255, 255) for _ in range(self.cols)] for _ in range(self.rows)]
         for loc in self.locs:
-            p = 1-self.distribs[loc][0]
-            r = sum()
+            colors[loc[0]][loc[1]] = (0, 0, 0)
+        r = {}
+        p = {}
+        for loc in self.locs:
+            d = self.distribs[loc]
+            p[loc] = 1 - d[0]
+            if p[loc] == 0:
+                continue
+            r[loc] = sum([d[r] * r for r in d if r != 0]) / p[loc]
+        r_max = max(list(r.values()))
+        r = {loc: r[loc] / r_max for loc in r}
+        for loc in self.locs:
+            if p[loc] == 0:
+                continue
+            colors[loc[0]][loc[1]] = tuple(
+                (np.array([255, 0, 0]) * (r[loc]) + np.array([0, 0, 255]) * (1 - r[loc])) * p[loc])
+        grid = np.array(colors, dtype=np.uint8)
+
+        # Make into PIL Image and scale up using Nearest Neighbour
+        im = Image.fromarray(grid)
+        im = im.resize((grid.shape[1] * 100, grid.shape[0] * 100), resample=Image.NEAREST)
+
+        # Save the image
+        im.save('result.png')
 
     def generate_inst(self):
         locs = self.locs
@@ -65,7 +93,7 @@ class Generator:
         for a in range(len(self.util_budgets)):
             agents.append(Agent.Agent(a, self.locs.index(self.init_locs[a]),
                                       self.move_budgets[a], self.util_budgets[a]))
-        return Instance.Instance(f'i_{len(vs)}_{len(agents)}_{self.hor}', vs, agents, self.hor)
+        return Instance.Instance(self.name, vs, agents, self.hor)
 
 
 class AntiGreedyGenerator(Generator):
@@ -77,14 +105,21 @@ class AntiGreedyGenerator(Generator):
         for loc in self.locs:
             x = loc[0]
             y = loc[1]
+            if x == y == 0:
+                self.distribs[loc] = {0: 1}
+                continue
             if y == 0:
-                self. distribs[loc] = {1: 1}
-            if x == self.cols - 1:
+                self.distribs[loc] = {1: 1, 0: 0}
+                continue
+            if y == self.cols - 1:
                 size = self.cols
-                R = np.ceil((size + 1) * size / self.p)
+                R = int(np.ceil((size + 1) * size / self.p))
                 d = {r: 0 for r in range(R)}
                 d[R] = self.p
-                self. distribs[loc] = d
+                self.distribs[loc] = d
+            else:
+                self.distribs[loc] = {0: 1, 1: 0}
+        self.name = self.name+str(p)
 
 
 class MountainTopGenerator(Generator):
@@ -123,9 +158,5 @@ class SanityCheckGenerator(Generator):
                          for loc in self.locs}
 
 
-mt = MountainTopGenerator(5, 5, 15, [(1, 2)], [14, 13], [6, 8], [(0, 0), (0, 0)],
-                          [(2, 2), (3, 1), (4, 4)]).generate_inst()
-ag = AntiGreedyGenerator(20, 0.0001)
-sc = SanityCheckGenerator(6)
-fr = FullRandomGenerator(5, 5, 15, [(1, 2)], [14, 13], [6, 8], [(0, 0), (0, 0)], 7)
-breakpoint()
+sc = SanityCheckGenerator(6).to_picture()
+fr = FullRandomGenerator(5, 5, 15, [(1, 2)], [14, 13], [6, 8], [(0, 0), (0, 0)], 7).generate_inst()
