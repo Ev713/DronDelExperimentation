@@ -75,7 +75,7 @@ def run_solver(inst, algo, timeout=1800, default='-', return_path=False):
 def single_run():
     timeout = 20
     decoder = instance_decoder.Decoder()
-    decoder.decode(file_path='maps')
+    decoder.decode_reduced(file_path='maps')
     inst = decoder.instances[0]
     name = 'scratch'
     # Inst_visualizer.vis3(inst, name)
