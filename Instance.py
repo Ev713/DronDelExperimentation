@@ -32,7 +32,6 @@ def one_val_per_key_combinations(dict: Dict):
 class Instance:
     def __init__(self, name: str, map: List[Vertex.Vertex], agents: List[Agent.Agent], horizon: int, source: str = '-'):
         self.name = name
-        self.type = self.name.split('_')[-2]
         self.map:List[Vertex.Vertex] = map  # list of Vertices
         if not self.sum_of_probs_is_1():
             for v in self.map:
